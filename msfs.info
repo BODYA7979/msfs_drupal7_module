@@ -1,0 +1,3 @@
+name = MSFS
+description = Module, that allows you upload files to multiple servers
+core = 7.x
