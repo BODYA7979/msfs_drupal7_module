@@ -1,0 +1,62 @@
+<?php
+
+function msfs_schema() {
+  return [
+    'msfs_servers' => [
+      'description' => 'MSFS servers list',
+      'fields' => [
+        'id' => [
+          'description' => 'ID',
+          'type' => 'serial',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ],
+        'site_url' => [
+          'type' => 'varchar',
+          'not null' => TRUE,
+          'length' => 255,
+        ],
+        'access_key' => [
+          'type' => 'varchar',
+          'not null' => TRUE,
+          'length' => 64,
+        ],
+      ],
+      'primary key' => ['id'],
+    ],
+    'msfs_stored_files' => [
+      'description' => 'MSFS stored files',
+      'fields' => [
+        'id' => [
+          'description' => 'ID',
+          'type' => 'serial',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ],
+        'fid' => [
+          'description' => 'Reference to managed file id (fid)',
+          'type' => 'int',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ],
+        'server_id' => [
+          'description' => 'Reference to msfs server id',
+          'type' => 'int',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ],
+      ],
+      'foreign keys' => [
+        'fid' => [
+          'table' => 'file_managed',
+          'columns' => ['fid' => 'fid'],
+        ],
+        'sid' => [
+          'table' => 'msfs_servers',
+          'columns' => ['server_id' => 'id'],
+        ],
+      ],
+      'primary key' => ['id'],
+    ],
+  ];
+}

@@ -1,2 +1,202 @@
 <?php
 
+/**
+ * Implements hook_menu().
+ */
+function msfs_menu()
+{
+  $items = [];
+
+  $items['admin/config/media/msfs/client/configure/servers'] = [
+    'title' => t('Configure servers'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => ['_msfs_configure_servers_form'],
+    'access arguments' => ['administer msfs client configuration'],
+    'type' => MENU_NORMAL_ITEM,
+  ];
+
+  $items['admin/config/media/msfs/client/configure/servers/add'] = [
+    'title' => t('Add new server'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => ['_msfs_add_server_form'],
+    'access arguments' => ['administer msfs client configuration'],
+    'type' => MENU_LOCAL_ACTION,
+  ];
+
+  $items['admin/config/media/msfs/client/configure/servers/%/edit'] = [
+    'title' => t('Edit server'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => ['_msfs_edit_server_form'],
+    'access arguments' => ['administer msfs client configuration'],
+    'type' => MENU_CALLBACK,
+  ];
+
+  $items['admin/config/media/msfs/client/configure/servers/%/info'] = [
+    'title' => t('Server info'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => ['_msfs_server_info_form'],
+    'access arguments' => ['administer msfs client configuration'],
+    'type' => MENU_CALLBACK,
+  ];
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function msfs_permission()
+{
+  return [
+    'administer msfs client configuration' => [
+      'title' => t('Administer msfs configuration'),
+    ],
+  ];
+}
+
+function msfs_get_servers() {
+  return db_select('msfs_servers', 'ms')
+    ->fields('ms')
+    ->execute()
+    ->fetchAll();
+}
+
+function msfs_get_server($id) {
+  return db_select('msfs_get_servers', 'ms')
+    ->fields('ms')
+    ->condition('id', $id)
+    ->execute()
+    ->fetchAssoc();
+}
+
+function msfs_add_server($data) {
+  return drupal_write_record('msfs_servers', $data);
+}
+
+function _msfs_configure_servers_form($form = [], &$form_state) {
+  $servers = msfs_get_servers();
+
+  $form['servers'] = [
+    '#type' => 'tableselect',
+    '#header' => [
+      'id' => [
+        'data' => t('ID'),
+      ],
+      'site_url' => [
+        'data' => t('Site url'),
+      ],
+      'access_key' => [
+        'data' => t('Access key'),
+      ],
+      'actions' => [
+        'data' => t('Actions'),
+      ],
+    ],
+  ];
+
+  foreach ($servers as $server) {
+    $form['servers']['#options'][$server->id]['id'] = $server->id;
+    $form['servers']['#options'][$server->id]['site_url'] = $server->site_url;
+    $form['servers']['#options'][$server->id]['access_key'] = $server->access_key;
+    $form['servers']['#options'][$server->id]['actions'] = theme_links([
+      'links' => [
+        [
+          'title' => t('Edit'),
+          'href' => current_path().'/'.$server->id.'/edit',
+        ],
+        [
+          'title' => t('Info'),
+          'href' => current_path().'/'.$server->id.'/info',
+        ],
+      ],
+      'attributes' => ['class' => ['links', 'inline']],
+      'heading' => [],
+    ]);
+  }
+
+  return $form;
+}
+
+function _msfs_add_server_form($form = [], &$form_state) {
+  $form['site_url'] = [
+    '#type' => 'textfield',
+    '#title' => t('Site url'),
+    '#maxlength' => 255,
+    '#required' => TRUE,
+  ];
+
+  $form['access_key'] = [
+    '#type' => 'textfield',
+    '#title' => t('Access key'),
+    '#maxlength' => 64,
+    '#required' => TRUE,
+  ];
+
+  $form['submit'] = [
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  ];
+
+  $form_state['#rebuild'] = TRUE;
+  return $form;
+}
+
+function _msfs_add_server_form_validate($form, &$form_state) {
+  $data = $form_state['values'];
+  $result = @file_get_contents(rtrim($data['site_url'], '/').'/msfs/api/ping?access_key='.$data['access_key'].'&ignore_caching');
+  if (preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $result) != 'pong') {
+    form_set_error('access_key', t('Can\'t establish connection to server "<b>@server</b> with" access key "<b>@access_key</b>"', [
+      '@server' => $data['site_url'],
+      '@access_key' => $data['access_key'],
+    ]));
+  }
+}
+
+function _msfs_add_server_form_submit($form, &$form_state) {
+  $values = $form_state['values'];
+  if (msfs_add_server([
+    'site_url' => rtrim($values['site_url'], '/'),
+    'access_key' => $values['access_key'],
+  ])) {
+    drupal_set_message(t('Server saved!'));
+    drupal_goto('admin/config/media/msfs/client/configure/servers');
+  }
+  else {
+    drupal_set_message('Error!', 'error');
+  }
+  return $form;
+}
+
+
+/**
+ * Implements hook_stream_wrappers().
+ */
+/*function msfs_stream_wrappers()
+{
+  return [
+    'msfs' => [
+      'name' => t('MSFS stream wrapper'),
+      'class' => 'MSFSStreamWrapper',
+      'description' => t('Multi server file storage'),
+      'type' => STREAM_WRAPPERS_NORMAL,
+    ],
+  ];
+}
+
+function msfs_load_file_by_id() {
+
+}
+
+class MSFSStreamWrapper extends DrupalPublicStreamWrapper {
+
+  public function getDirectoryPath()
+  {
+    return '';
+  }
+
+  function getExternalUrl()
+  {
+    return parent::getExternalUrl();
+  }
+
+}*/
