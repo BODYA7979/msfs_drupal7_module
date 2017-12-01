@@ -26,7 +26,7 @@ function msfs_menu()
   $items['admin/config/media/msfs/client/configure/servers/%/edit'] = [
     'title' => t('Edit server'),
     'page callback' => 'drupal_get_form',
-    'page arguments' => ['_msfs_edit_server_form'],
+    'page arguments' => ['_msfs_edit_server_form', 7],
     'access arguments' => ['administer msfs client configuration'],
     'type' => MENU_CALLBACK,
   ];
@@ -34,7 +34,7 @@ function msfs_menu()
   $items['admin/config/media/msfs/client/configure/servers/%/info'] = [
     'title' => t('Server info'),
     'page callback' => 'drupal_get_form',
-    'page arguments' => ['_msfs_server_info_form'],
+    'page arguments' => ['_msfs_server_info_form', 7],
     'access arguments' => ['administer msfs client configuration'],
     'type' => MENU_CALLBACK,
   ];
@@ -62,20 +62,30 @@ function msfs_get_servers() {
 }
 
 function msfs_get_server($id) {
-  return db_select('msfs_get_servers', 'ms')
+  return db_select('msfs_servers', 'ms')
     ->fields('ms')
     ->condition('id', $id)
     ->execute()
     ->fetchAssoc();
 }
 
+function msfs_load_server($id) {
+  $server_data = msfs_get_server($id);
+  return drupal_json_decode(_msfs_request_to_server($server_data['site_url'].'/msfs/api/info'));
+}
+
 function msfs_add_server($data) {
   return drupal_write_record('msfs_servers', $data);
 }
 
+function _msfs_request_to_server($path) {
+  $result = @file_get_contents($path);
+  return preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $result);
+}
+
 function _msfs_configure_servers_form($form = [], &$form_state) {
   $servers = msfs_get_servers();
-
+  msfs_load_server(1);
   $form['servers'] = [
     '#type' => 'tableselect',
     '#header' => [
@@ -143,8 +153,7 @@ function _msfs_add_server_form($form = [], &$form_state) {
 
 function _msfs_add_server_form_validate($form, &$form_state) {
   $data = $form_state['values'];
-  $result = @file_get_contents(rtrim($data['site_url'], '/').'/msfs/api/ping?access_key='.$data['access_key'].'&ignore_caching');
-  if (preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $result) != 'pong') {
+  if (_msfs_request_to_server(rtrim($data['site_url'], '/').'/msfs/api/ping?access_key='.$data['access_key'].'&ignore_caching') != 'pong') {
     form_set_error('access_key', t('Can\'t establish connection to server "<b>@server</b> with" access key "<b>@access_key</b>"', [
       '@server' => $data['site_url'],
       '@access_key' => $data['access_key'],
@@ -164,6 +173,12 @@ function _msfs_add_server_form_submit($form, &$form_state) {
   else {
     drupal_set_message('Error!', 'error');
   }
+  return $form;
+}
+
+function _msfs_server_info_form($form = array(), &$form_state, $server_id) {
+  $server_data = msfs_load_server($server_id);
+  $b = 1;
   return $form;
 }
 
