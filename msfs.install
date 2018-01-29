@@ -33,8 +33,8 @@ function msfs_schema() {
           'not null' => TRUE,
           'unsigned' => TRUE,
         ],
-        'fid' => [
-          'description' => 'Reference to managed file id (fid)',
+        'external_id' => [
+          'description' => 'File id on MSFS instance',
           'type' => 'int',
           'not null' => TRUE,
           'unsigned' => TRUE,

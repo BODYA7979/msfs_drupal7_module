@@ -1,5 +1,7 @@
 <?php
 
+require_once 'msfs.field.inc';
+
 /**
  * Implements hook_menu().
  */
@@ -198,22 +200,6 @@ function _msfs_server_info_page($server_id) {
   return $output;
 }
 
-
-/**
- * Implements hook_stream_wrappers().
- */
-function msfs_stream_wrappers()
-{
-  return [
-    'msfs' => [
-      'name' => t('MSFS stream wrapper'),
-      'class' => 'MSFSStreamWrapper',
-      'description' => t('Multi server file storage'),
-      'type' => STREAM_WRAPPERS_NORMAL,
-    ],
-  ];
-}
-
 function msfs_load_file_by_uri($uri) {
   $b = 1;
   $files = file_load_multiple([], ['uri' => $uri]);
@@ -223,178 +209,55 @@ function msfs_load_file_by_uri($uri) {
 //  ->condition('');
 }
 
-class MSFSStreamWrapper extends DrupalPublicStreamWrapper implements DrupalStreamWrapperInterface {
+/**
+ * Perform save uploaded file via $_FILES
+ * @param $field_name string
+ *
+ * @see msfs_save_file()
+ *
+ * @return int|false
+ */
+function msfs_save_upload_file($field_name) {
+  if (empty($_FILES['files']['tmp_name'][$field_name])) return FALSE;
+  return msfs_save_file($_FILES['files']['tmp_name'][$field_name], $_FILES['files']['name']['field_file']);
+}
 
-  /**
-   * Instance URI referenced as "<scheme>://key".
-   *
-   * @var string
-   */
-  protected $uri = NULL;
+/**
+ * Function, that save $file_path on remote server
+ * Return id of saveed file or false if error appear
+ *
+ * @param $file_path string
+ * @return int|false
+ */
+function msfs_save_file($file_path, $file_name) {
+  $server_id = db_select('msfs_servers', 'ms')->fields('ms', ['id'])->range(0, 1)->orderRandom()->execute()->fetchAssoc()['id'];
+  $server_access = msfs_get_server($server_id);
 
-  /**
-   * Directory listing used by the dir_* methods.
-   *
-   * @var array
-   */
-  protected $dir = NULL;
+  $post_url = $server_access['site_url'] . '/msfs/api/file/save?access_key=' . $server_access['access_key'];
 
-  public function __construct() {
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL,$post_url);
+  curl_setopt($ch, CURLOPT_POST, 1);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, array(
+    'filename' => $file_name,
+    'filepath' => 'msfs_uploads',
+    'filecontent' => curl_file_create($file_path, mime_content_type($file_path), $file_name),
+  ));
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-  }
+  $server_output_raw = curl_exec ($ch);
+  $server_output = drupal_json_decode(preg_replace('/[\x00-\x1F\x80-\xFF]/', '', $server_output_raw));
 
+  curl_close ($ch);
 
-  public function chmod($mode) {
-    return TRUE;
-  }
-
-  public function dir_closedir() {
-    unset($this->dir);
-    return TRUE;
-  }
-
-  public function dir_opendir($uri, $options) {
-    // TODO: Implement dir_opendir() method.
-    $b = 1;
-  }
-
-  public function dir_readdir() {
-    // TODO: Implement dir_readdir() method.
-    $b = 1;
-  }
-
-  public function dir_rewinddir() {
-    reset($this->dir);
-    return TRUE;
-  }
-
-  public function dirname($uri = NULL) {
-    if (!isset($uri)) {
-      $uri = $this->uri;
+  if ($server_output['status'] == 'OK') {
+    $record = [
+      'external_id' => $server_output['raw_file']['fid'],
+      'server_id' => $server_id
+    ];
+    if (drupal_write_record('msfs_stored_files', $record)) {
+      return $record['id'];
     }
-    $scheme = file_uri_scheme($uri);
-    $dirname = dirname(file_uri_target($uri));
-
-
-    if ($dirname == '.') {
-      $dirname = '';
-    }
-
-    return "$scheme://$dirname";
   }
-
-  public function getExternalUrl() {
-    // TODO: Implement getExternalUrl() method.
-    $b = 1;
-  }
-
-  public function mkdir($uri, $mode, $options) {
-    // TODO: Implement mkdir() method.
-    $b = 1;
-    return TRUE;
-  }
-
-  public function realpath() {
-    return FALSE;
-  }
-
-  public function rename($from_uri, $to_uri) {
-    // TODO: Implement rename() method.
-    $b = 1;
-  }
-
-  public function rmdir($uri, $options) {
-    // TODO: Implement rmdir() method.
-    $b = 1;
-  }
-
-  public function setUri($uri) {
-    $this->uri = $uri;
-  }
-
-  public function getUri() {
-    return $this->uri;
-  }
-
-  public function stream_close() {
-    // TODO: Implement stream_close() method.
-    $b = 1;
-  }
-
-  public function stream_eof() {
-    // TODO: Implement stream_eof() method.
-    $b = 1;
-  }
-
-  public function stream_open($uri, $mode, $options, &$opened_url) {
-    // TODO: Implement stream_open() method.
-    $b = 1;
-    $uri = ltrim($uri, 'msfs://');
-    $file = msfs_load_file_by_uri($uri);
-  }
-
-  public function stream_lock($operation) {
-    // TODO: Implement stream_lock() method.
-    $b = 1;
-  }
-
-  public function stream_read($count) {
-    // TODO: Implement stream_read() method.
-    $b = 1;
-  }
-
-  public function stream_write($data) {
-    // TODO: Implement stream_write() method.
-    $b = 1;
-  }
-
-  public function stream_seek($offset, $whence) {
-    // TODO: Implement stream_seek() method.
-    $b = 1;
-  }
-
-  public function stream_flush() {
-    // TODO: Implement stream_flush() method.
-    $b = 1;
-  }
-
-  public function stream_tell() {
-    // TODO: Implement stream_tell() method.
-    $b = 1;
-  }
-
-  public function stream_stat() {
-    // TODO: Implement stream_stat() method.
-    $b = 1;
-  }
-
-  public function unlink($uri) {
-    // TODO: Implement unlink() method.
-    $b = 1;
-  }
-
-  public function url_stat($uri, $flags) {
-    // TODO: Implement url_stat() method.
-    $b = 1;
-  }
-
-  public static function getMimeType($uri, $mapping = NULL) {
-    // TODO: Implement getMimeType() method.
-    $b = 1;
-  }
-
-  /**
-   * Gets the path that the wrapper is responsible for.
-   *
-   * This function isn't part of DrupalStreamWrapperInterface, but the rest
-   * of Drupal calls it as if it were, so we need to define it.
-   *
-   * @return string
-   *   The empty string. Since this is a remote stream wrapper,
-   *   it has no directory path.
-   */
-  public function getDirectoryPath() {
-    return '';
-  }
-
+  return FALSE;
 }
