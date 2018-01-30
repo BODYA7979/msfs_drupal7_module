@@ -69,12 +69,18 @@ function msfs_field_widget_form(&$form, &$form_state, $field, $instance, $langco
         '#required' => $element['#required'],
       ];
       if (!empty($element['#entity']->{$field_name}['und'][0]['msfs_file_id'])) {
-//
-//        $element['msfs_file_upload_view'] = [
-//          '#type' => 'markup',
-//          '#markup' => '',
-//        ];
-//        $g = 1;
+        $msfs_file_id = $element['#entity']->{$field_name}['und'][0]['msfs_file_id'];
+        $file = msfs_load_file($msfs_file_id);
+        $markup = '<div>';
+        if ($file['raw']['type'] == 'image') {
+          $markup .= '<img src="'.$file['url'].'" width="100px"><br>';
+        }
+        $markup .= '<a href="'.$file['url'].'" target="_blank">'.$file['raw']['filename'].'</a>';
+        $markup .= '</div>';
+        $element['msfs_file_upload_view'] = [
+          '#type' => 'markup',
+          '#markup' => $markup,
+        ];
       }
       break;
   }
@@ -88,6 +94,19 @@ function msfs_field_widget_form(&$form, &$form_state, $field, $instance, $langco
 function msfs_field_attach_submit($entity_type, $entity, $form, &$form_state)
 {
   // crap code to save values. TODO: remove this shit and write normal submit after reading documentation :-)
+
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function msfs_form_alter(&$form, &$form_state, $form_id)
+{
+  $form['#submit'][] = '_msfs_field_submit';
+}
+
+function _msfs_field_submit($form, &$form_state) {
+  $b = 1;
   foreach ($form as $item) {
     if (is_array($item)) {
       if (!empty($item[LANGUAGE_NONE]['#field_name'])) {
@@ -97,9 +116,9 @@ function msfs_field_attach_submit($entity_type, $entity, $form, &$form_state)
             if (!empty($_FILES['files']['name'][$field_name])) {
               // upload file and get id of uploaded file
               if ($msfs_id = msfs_save_upload_file($field_name)) {
-                $form_state['values'][$field_name]['und'][0]['msfs_file_upload'] = $msfs_id;
-                $entity->{$field_name}['und'][0]['msfs_file_upload'] = $msfs_id;
-                entity_save($entity_type, $entity);
+                $entity = &$form['#entity'];
+                $entity->{$field_name}[LANGUAGE_NONE][0]['msfs_file_id'] = $msfs_id;
+                entity_save($form['#entity_type'], $entity);
               }
             }
           }
@@ -140,6 +159,7 @@ function msfs_field_formatter_view($entity_type, $entity, $field, $instance, $la
 
   switch ($display['type']) {
     case 'msfs_file_formatter':
+//      file_field_formatter_view()
       $b = 1;
       break;
   }
